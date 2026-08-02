@@ -18,6 +18,10 @@ final class BatchSceneOverlay extends Overlay
 {
 	private static final Color VESSEL_COLOR = Color.WHITE;
 	private static final Color COMPLETE_COLOR = new Color(0, 255, 90);
+	private static final Color NEXT_RECIPE_COLOR = new Color(150, 150, 150);
+	private static final int MARKER_OFFSET = -22;
+	private static final int CURRENT_RECIPE_OFFSET = 0;
+	private static final int NEXT_RECIPE_OFFSET = 20;
 
 	private final Client client;
 	private final MixologyBatchPlugin plugin;
@@ -50,10 +54,14 @@ final class BatchSceneOverlay extends Overlay
 			return null;
 		}
 
+		renderPermanentLeverMarkers(graphics);
 		Guidance guidance = plugin.getGuidance();
 		if (guidance.getPhase() == Guidance.Phase.MIXING)
 		{
-			renderMixingRecipe(graphics, guidance.getEntry().getPotion());
+			renderMixingRecipe(
+				graphics,
+				guidance.getEntry().getPotion(),
+				plugin.getNextQueuedPotion());
 			return null;
 		}
 
@@ -85,14 +93,58 @@ final class BatchSceneOverlay extends Overlay
 		return null;
 	}
 
-	private void renderMixingRecipe(Graphics2D graphics, Potion potion)
+	private void renderPermanentLeverMarkers(Graphics2D graphics)
 	{
 		for (Component component : Component.values())
 		{
-			String label = leverLabel(potion, component);
-			if (label != null)
+			TileObject object = objects.find(component.getLever());
+			if (object != null)
 			{
-				drawTarget(graphics, component.getLever(), label, component.getColor());
+				drawLabel(
+					graphics,
+					object,
+					Character.toString(component.getCode()),
+					component.getColor(),
+					MARKER_OFFSET);
+			}
+		}
+	}
+
+	private void renderMixingRecipe(Graphics2D graphics, Potion potion, Potion nextPotion)
+	{
+		for (Component component : Component.values())
+		{
+			TileObject object = objects.find(component.getLever());
+			if (object == null)
+			{
+				continue;
+			}
+
+			String currentLabel = leverLabel(potion, component);
+			if (currentLabel != null)
+			{
+				outliner.drawOutline(
+					object,
+					config.outlineWidth(),
+					component.getColor(),
+					config.outlineFeather());
+				drawLabel(
+					graphics,
+					object,
+					currentLabel,
+					component.getColor(),
+					CURRENT_RECIPE_OFFSET);
+			}
+
+			String nextLabel = nextPotion == null ? null : leverLabel(nextPotion, component);
+			if (nextLabel != null)
+			{
+				drawLabel(
+					graphics,
+					object,
+					nextLabel,
+					NEXT_RECIPE_COLOR,
+					NEXT_RECIPE_OFFSET);
 			}
 		}
 		drawTarget(graphics, LabObject.MIXING_VESSEL, "4", VESSEL_COLOR);
@@ -125,7 +177,7 @@ final class BatchSceneOverlay extends Overlay
 			return;
 		}
 		outliner.drawOutline(object, config.outlineWidth(), color, config.outlineFeather());
-		drawLabel(graphics, object, label, color);
+		drawLabel(graphics, object, label, color, 0);
 	}
 
 	private static String stationLabel(BatchEntry entry, boolean active)
@@ -134,17 +186,23 @@ final class BatchSceneOverlay extends Overlay
 			+ " " + (active ? "PROCESS" : entry.getStation().getActionName().toUpperCase());
 	}
 
-	private void drawLabel(Graphics2D graphics, TileObject object, String text, Color color)
+	private void drawLabel(
+		Graphics2D graphics,
+		TileObject object,
+		String text,
+		Color color,
+		int verticalOffset)
 	{
+		graphics.setFont(graphics.getFont().deriveFont(Font.BOLD, 16f));
 		Point location = Perspective.getCanvasTextLocation(client, graphics, object.getLocalLocation(), text, 120);
 		if (location == null)
 		{
 			return;
 		}
-		graphics.setFont(graphics.getFont().deriveFont(Font.BOLD, 16f));
+		int y = location.getY() + verticalOffset;
 		graphics.setColor(Color.BLACK);
-		graphics.drawString(text, location.getX() + 1, location.getY() + 1);
+		graphics.drawString(text, location.getX() + 1, y + 1);
 		graphics.setColor(color);
-		graphics.drawString(text, location.getX(), location.getY());
+		graphics.drawString(text, location.getX(), y);
 	}
 }

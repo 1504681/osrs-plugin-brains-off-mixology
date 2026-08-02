@@ -153,6 +153,20 @@ public class BatchStateResolverTest
 	}
 
 	@Test
+	public void partialInventorySelectsItsEarliestUnfinishedStation()
+	{
+		List<InventorySlot> inventory = emptyInventory();
+		inventory.set(0, InventorySlot.fromItemId(Potion.MMA.getFinishedItemId()));
+		inventory.set(10, InventorySlot.fromItemId(Potion.ALA.getUnfinishedItemId()));
+		CyclePlan cycle = CyclePlan.create(plan, inventory);
+
+		BatchEntry unfinished = BatchStateResolver.firstUnfinishedEntry(cycle, inventory);
+
+		assertEquals(10, unfinished.getInventorySlot());
+		assertEquals(Station.HOMOGENISE, unfinished.getStation());
+	}
+
+	@Test
 	public void digweedReservesOneSlotWithoutPausingTheBatch()
 	{
 		List<InventorySlot> inventory = emptyInventory();

@@ -156,13 +156,25 @@ public interface MixologyBatchConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		section = DISPLAY,
+		keyName = "guardWrongStations",
+		name = "Guard wrong stations",
+		description = "Swap the station's existing Check option into left-click position while it is unavailable",
+		position = 4
+	)
+	default boolean guardWrongStations()
+	{
+		return true;
+	}
+
 	@Alpha
 	@ConfigItem(
 		section = DISPLAY,
 		keyName = "stationColor",
 		name = "Station highlight",
 		description = "Colour used for station outlines and the active inventory slot",
-		position = 4
+		position = 5
 	)
 	default Color stationColor()
 	{
@@ -175,7 +187,7 @@ public interface MixologyBatchConfig extends Config
 		keyName = "outlineWidth",
 		name = "Outline width",
 		description = "Width of scene-object outlines",
-		position = 5
+		position = 6
 	)
 	default int outlineWidth()
 	{
@@ -188,7 +200,7 @@ public interface MixologyBatchConfig extends Config
 		keyName = "outlineFeather",
 		name = "Outline feather",
 		description = "Softness of scene-object outlines",
-		position = 6
+		position = 7
 	)
 	default int outlineFeather()
 	{

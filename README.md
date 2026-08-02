@@ -31,12 +31,15 @@ Retort is last by default so its repeated-click interaction cannot accidentally 
 ## What the plugin shows
 
 - During mixing, the complete recipe is visible at once: every required lever is outlined with its step number (`1`, `2`, `3`) while the vessel shows `4`. Repeated ingredients combine their step numbers on the same lever. The instruction panel shows the letter sequence separately, such as `M A L`.
+- Every lever keeps a permanent coloured `M`, `A`, or `L` marker. While mixing, the next queued potion's lever numbers appear in gray below the current coloured numbers without changing the active outlines.
 - A non-blocking potion queue shows the previous two completed potions, the current potion, and the next three potions. Every row includes the potion code and its complete three-letter recipe.
 - Clicking `Mix` predicts the next potion locally so its lever numbers appear immediately instead of waiting for the mixing animation. The prediction is reconciled with the actual inventory result and expires safely if the action does not complete.
 - The instruction panel shows the current inventory slot, potion code, complete four-click recipe, and the station batch that potion belongs to.
 - The panel always lists how many of every configured recipe remain in the inventory, including potions carried into a refill cycle.
 - Each inventory potion is marked `#1`, `#2`, or `#3` for its planned station batch.
 - Once the available potion slots are full, the correct processing station is outlined. It remains the target until that contiguous batch is finished, then the next station is highlighted.
+- The optional wrong-station guard swaps the station's existing `Check` option into the left-click position while it is unavailable. The original processing option remains unchanged in the right-click menu.
+- A partial inventory always leaves the earliest unfinished potion's planned station available. Using it ends the refill early, guides the remaining station batches in order, and then highlights the conveyor for deposit.
 - After all 28 potions are processed, the conveyor is highlighted.
 - Deposited inventory gaps and recipes mixed out of the suggested order are accepted. Actual potions in the inventory count toward the configured recipe totals.
 - Using a lever while potions remain starts a rolling refill cycle around those existing potions. Wrong processing stations or a total above 28 still pause with a specific correction.

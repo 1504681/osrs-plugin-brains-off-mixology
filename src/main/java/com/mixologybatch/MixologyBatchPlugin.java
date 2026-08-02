@@ -12,11 +12,15 @@ import javax.inject.Inject;
 import net.runelite.api.Client;
 import net.runelite.api.Item;
 import net.runelite.api.ItemContainer;
+import net.runelite.api.Menu;
+import net.runelite.api.MenuAction;
+import net.runelite.api.MenuEntry;
 import net.runelite.api.Player;
 import net.runelite.api.events.GameStateChanged;
 import net.runelite.api.events.GameTick;
 import net.runelite.api.events.ItemContainerChanged;
 import net.runelite.api.events.MenuOptionClicked;
+import net.runelite.api.events.PostMenuSort;
 import net.runelite.api.events.WidgetClosed;
 import net.runelite.api.events.WidgetLoaded;
 import net.runelite.api.gameval.InterfaceID;
@@ -75,8 +79,10 @@ public class MixologyBatchPlugin extends Plugin
 	private Potion trackedPotion;
 	private int trackedStep = 1;
 	private MixPrediction mixPrediction;
+	private Station partialProcessingStation;
 	private int gameTickCounter;
 	private boolean refilling = true;
+	private boolean finishingPartialBatch;
 	private boolean inLab;
 
 	@Override
@@ -117,10 +123,79 @@ public class MixologyBatchPlugin extends Plugin
 	}
 
 	@Subscribe
+	public void onPostMenuSort(PostMenuSort event)
+	{
+		if (!inLab || !config.guardWrongStations() || client.isMenuOpen())
+		{
+			return;
+		}
+
+		Menu menu = client.getMenu();
+		MenuEntry[] entries = menu.getMenuEntries();
+		int processingIndex = -1;
+		int checkIndex = -1;
+		Station station = null;
+
+		for (int i = 0; i < entries.length; i++)
+		{
+			MenuEntry entry = entries[i];
+			Station entryStation = StationMenuGuard.stationForObjectId(entry.getIdentifier());
+			if (entryStation == null)
+			{
+				continue;
+			}
+
+			if (station == null)
+			{
+				station = entryStation;
+			}
+			if (entryStation != station)
+			{
+				continue;
+			}
+
+			if (entry.getType() == MenuAction.GAME_OBJECT_FIRST_OPTION)
+			{
+				processingIndex = i;
+			}
+			else if ("Check".equalsIgnoreCase(entry.getOption()))
+			{
+				checkIndex = i;
+			}
+		}
+
+		if (station == null || canUseStation(station) || processingIndex < 0 || checkIndex < 0)
+		{
+			return;
+		}
+
+		MenuEntry processingEntry = entries[processingIndex];
+		entries[processingIndex] = entries[checkIndex];
+		entries[checkIndex] = processingEntry;
+		menu.setMenuEntries(entries);
+	}
+
+	@Subscribe
 	public void onMenuOptionClicked(MenuOptionClicked event)
 	{
 		if (!inLab || "Examine".equalsIgnoreCase(event.getMenuOption()))
 		{
+			return;
+		}
+
+		Station clickedStation = StationMenuGuard.stationForObjectId(event.getId());
+		if (refilling
+			&& clickedStation != null
+			&& clickedStation == partialProcessingStation
+			&& event.getMenuAction() == MenuAction.GAME_OBJECT_FIRST_OPTION
+			&& canUseStation(clickedStation))
+		{
+			// Treat choosing the available processing station before the inventory
+			// is full as an explicit request to finish and deposit this partial batch.
+			finishingPartialBatch = true;
+			refilling = false;
+			resetActionQueue();
+			updateState();
 			return;
 		}
 
@@ -245,12 +320,17 @@ public class MixologyBatchPlugin extends Plugin
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
 			refilling = inventoryPotionCount == 0 || mixingActivity;
+			finishingPartialBatch = !refilling
+				&& cyclePlan.isValid()
+				&& inventoryPotionCount < cyclePlan.getPotionCapacity()
+				&& BatchStateResolver.firstUnfinishedEntry(cyclePlan, inventory) != null;
 		}
 
-		if (!refilling && mixingActivity && activeStations.isEmpty())
+		if (!refilling && !finishingPartialBatch && mixingActivity && activeStations.isEmpty())
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
 			refilling = true;
+			finishingPartialBatch = false;
 		}
 		else if (refilling && cyclePlan != null && !cyclePlan.containsPotionSlots(planningInventory))
 		{
@@ -269,21 +349,30 @@ public class MixologyBatchPlugin extends Plugin
 			&& !mixingActivity)
 		{
 			refilling = false;
+			finishingPartialBatch = false;
 		}
 		else if (!refilling
+			&& !finishingPartialBatch
 			&& activeStations.isEmpty()
 			&& !mixingActivity
 			&& BatchStateResolver.shouldStartRollingRefill(planningInventory))
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
 			refilling = true;
+			finishingPartialBatch = false;
 			resetActionQueue();
 		}
 		else if (!refilling && inventoryPotionCount == 0 && activeStations.isEmpty())
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
 			refilling = true;
+			finishingPartialBatch = false;
 		}
+
+		BatchEntry partialEntry = activeStations.isEmpty()
+			? BatchStateResolver.firstUnfinishedEntry(cyclePlan, inventory)
+			: null;
+		partialProcessingStation = partialEntry == null ? null : partialEntry.getStation();
 
 		currentPotionCounts = BatchStateResolver.potionCounts(planningInventory);
 		if (planningVesselPotion != null)
@@ -315,6 +404,7 @@ public class MixologyBatchPlugin extends Plugin
 			mixPrediction = null;
 			cyclePlan = CyclePlan.create(plan, readInventory());
 			refilling = true;
+			finishingPartialBatch = false;
 			trackedPotion = null;
 			trackedStep = 1;
 			updateState();
@@ -517,6 +607,14 @@ public class MixologyBatchPlugin extends Plugin
 		return null;
 	}
 
+	private boolean canUseStation(Station station)
+	{
+		boolean stationContainsPotion = Potion.fromVarbit(
+			client.getVarbitValue(station.getPotionVarbit())) != null;
+		return StationMenuGuard.canUseStation(
+			guidance, station, stationContainsPotion, partialProcessingStation);
+	}
+
 	private static int countInventoryPotions(List<InventorySlot> inventory)
 	{
 		int count = 0;
@@ -564,9 +662,11 @@ public class MixologyBatchPlugin extends Plugin
 	{
 		inLab = false;
 		cyclePlan = null;
+		partialProcessingStation = null;
 		currentPotionCounts.clear();
 		resetActionQueue();
 		refilling = true;
+		finishingPartialBatch = false;
 		guidance = Guidance.outside();
 	}
 
@@ -612,6 +712,11 @@ public class MixologyBatchPlugin extends Plugin
 	List<Potion> getUpcomingQueuePotions()
 	{
 		return upcomingQueuePotions;
+	}
+
+	Potion getNextQueuedPotion()
+	{
+		return upcomingQueuePotions.size() > 1 ? upcomingQueuePotions.get(1) : null;
 	}
 
 	private static final class MixPrediction

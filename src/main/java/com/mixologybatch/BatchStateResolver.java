@@ -125,16 +125,30 @@ final class BatchStateResolver
 			return Guidance.processing(recovered, true);
 		}
 
+		BatchEntry unfinished = firstUnfinishedEntry(cycle, inventory);
+		if (unfinished != null)
+		{
+			return Guidance.processing(unfinished, false);
+		}
+		return Guidance.complete();
+	}
+
+	static BatchEntry firstUnfinishedEntry(CyclePlan cycle, List<InventorySlot> inventory)
+	{
+		if (cycle == null || !cycle.isValid())
+		{
+			return null;
+		}
 		for (int rank = 0; rank < cycle.size(); rank++)
 		{
 			int slot = cycle.slotAtRank(rank);
 			InventorySlot actual = inventory.get(slot);
 			if (actual.isPotion() && !actual.isFinished())
 			{
-				return Guidance.processing(cycle.entryAtRank(rank, actual.getPotion()), false);
+				return cycle.entryAtRank(rank, actual.getPotion());
 			}
 		}
-		return Guidance.complete();
+		return null;
 	}
 
 	private static BatchEntry recoverActiveEntry(
