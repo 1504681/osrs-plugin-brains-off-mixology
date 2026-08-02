@@ -73,12 +73,11 @@ enum Potion
 		return recipe.clone();
 	}
 
-	String getRecipeSteps()
+	String getRecipeSequence()
 	{
-		return "1 " + recipe[0].getCode()
-			+ "  >  2 " + recipe[1].getCode()
-			+ "  >  3 " + recipe[2].getCode()
-			+ "  >  4 MIX";
+		return recipe[0].getCode()
+			+ "  " + recipe[1].getCode()
+			+ "  " + recipe[2].getCode();
 	}
 
 	boolean isFinishedItem(int itemId)
@@ -97,4 +96,3 @@ enum Potion
 		return index >= 0 && index < values().length ? values()[index] : null;
 	}
 }
-

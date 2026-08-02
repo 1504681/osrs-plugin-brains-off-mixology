@@ -112,7 +112,7 @@ public interface MixologyBatchConfig extends Config
 		section = DISPLAY,
 		keyName = "showPanel",
 		name = "Show instruction panel",
-		description = "Show the current potion, numbered lever recipe, and station progress",
+		description = "Show the current action and live per-recipe inventory totals",
 		position = 0
 	)
 	default boolean showPanel()
@@ -123,8 +123,8 @@ public interface MixologyBatchConfig extends Config
 	@ConfigItem(
 		section = DISPLAY,
 		keyName = "showSceneGuidance",
-		name = "Highlight next object",
-		description = "Outline only the lever, vessel, station, or conveyor to use next",
+		name = "Show scene guidance",
+		description = "Show every numbered recipe object while mixing, then the current station or conveyor",
 		position = 1
 	)
 	default boolean showSceneGuidance()
@@ -144,13 +144,25 @@ public interface MixologyBatchConfig extends Config
 		return true;
 	}
 
+	@ConfigItem(
+		section = DISPLAY,
+		keyName = "showActionQueue",
+		name = "Show potion queue",
+		description = "Show the previous two, current, and next three potions with their full recipes",
+		position = 3
+	)
+	default boolean showActionQueue()
+	{
+		return true;
+	}
+
 	@Alpha
 	@ConfigItem(
 		section = DISPLAY,
 		keyName = "stationColor",
 		name = "Station highlight",
 		description = "Colour used for station outlines and the active inventory slot",
-		position = 3
+		position = 4
 	)
 	default Color stationColor()
 	{
@@ -163,7 +175,7 @@ public interface MixologyBatchConfig extends Config
 		keyName = "outlineWidth",
 		name = "Outline width",
 		description = "Width of scene-object outlines",
-		position = 4
+		position = 5
 	)
 	default int outlineWidth()
 	{
@@ -176,7 +188,7 @@ public interface MixologyBatchConfig extends Config
 		keyName = "outlineFeather",
 		name = "Outline feather",
 		description = "Softness of scene-object outlines",
-		position = 5
+		position = 6
 	)
 	default int outlineFeather()
 	{

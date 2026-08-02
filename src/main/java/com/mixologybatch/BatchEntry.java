@@ -54,5 +54,15 @@ final class BatchEntry
 	{
 		return stationTotal;
 	}
-}
 
+	BatchEntry remap(Potion remappedPotion, int remappedInventorySlot)
+	{
+		return new BatchEntry(
+			remappedPotion,
+			station,
+			remappedInventorySlot,
+			stationOrdinal,
+			stationPosition,
+			stationTotal);
+	}
+}

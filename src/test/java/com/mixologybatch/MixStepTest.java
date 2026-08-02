@@ -10,6 +10,8 @@ public class MixStepTest
 	@Test
 	public void walksCanonicalRecipeThenMixes()
 	{
+		assertEquals("M  A  L", Potion.MAL.getRecipeSequence());
+
 		MixStep first = MixStep.resolve(Potion.MAL, new int[]{0, 0, 0}, false);
 		MixStep second = MixStep.resolve(Potion.MAL, new int[]{1, 0, 0}, false);
 		MixStep third = MixStep.resolve(Potion.MAL, new int[]{1, 2, 0}, false);
@@ -44,4 +46,3 @@ public class MixStepTest
 		assertTrue(step.getError().contains("MMM"));
 	}
 }
-

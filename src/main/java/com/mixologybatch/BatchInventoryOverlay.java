@@ -29,13 +29,13 @@ final class BatchInventoryOverlay extends WidgetItemOverlay
 			return;
 		}
 		int slot = widgetItem.getWidget().getIndex();
-		BatchPlan plan = plugin.getPlan();
-		if (!plan.isValid() || slot < 0 || slot >= plan.size())
+		Potion potion = Potion.fromItemId(itemId);
+		BatchEntry entry = plugin.getCycleEntry(slot, potion);
+		if (entry == null)
 		{
 			return;
 		}
 
-		BatchEntry entry = plan.get(slot);
 		Rectangle bounds = widgetItem.getCanvasBounds();
 		String text = "#" + (entry.getStationOrdinal() + 1);
 		graphics.setFont(FontManager.getRunescapeSmallFont());

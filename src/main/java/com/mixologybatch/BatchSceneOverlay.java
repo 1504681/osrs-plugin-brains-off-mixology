@@ -51,21 +51,17 @@ final class BatchSceneOverlay extends Overlay
 		}
 
 		Guidance guidance = plugin.getGuidance();
+		if (guidance.getPhase() == Guidance.Phase.MIXING)
+		{
+			renderMixingRecipe(graphics, guidance.getEntry().getPotion());
+			return null;
+		}
+
 		LabObject target;
 		Color color;
 		String label;
 		switch (guidance.getAction())
 		{
-			case PULL_LEVER:
-				target = guidance.getComponent().getLever();
-				color = guidance.getComponent().getColor();
-				label = guidance.getStepNumber() + " " + guidance.getComponent().getCode();
-				break;
-			case MIX_VESSEL:
-				target = LabObject.MIXING_VESSEL;
-				color = VESSEL_COLOR;
-				label = "4 MIX";
-				break;
 			case USE_STATION:
 				target = guidance.getEntry().getStation().getLabObject();
 				color = config.stationColor();
@@ -85,14 +81,51 @@ final class BatchSceneOverlay extends Overlay
 				return null;
 		}
 
+		drawTarget(graphics, target, label, color);
+		return null;
+	}
+
+	private void renderMixingRecipe(Graphics2D graphics, Potion potion)
+	{
+		for (Component component : Component.values())
+		{
+			String label = leverLabel(potion, component);
+			if (label != null)
+			{
+				drawTarget(graphics, component.getLever(), label, component.getColor());
+			}
+		}
+		drawTarget(graphics, LabObject.MIXING_VESSEL, "4", VESSEL_COLOR);
+	}
+
+	static String leverLabel(Potion potion, Component target)
+	{
+		StringBuilder label = new StringBuilder();
+		Component[] recipe = potion.getRecipe();
+		for (int index = 0; index < recipe.length; index++)
+		{
+			if (recipe[index] != target)
+			{
+				continue;
+			}
+			if (label.length() > 0)
+			{
+				label.append(" / ");
+			}
+			label.append(index + 1);
+		}
+		return label.length() == 0 ? null : label.toString();
+	}
+
+	private void drawTarget(Graphics2D graphics, LabObject target, String label, Color color)
+	{
 		TileObject object = objects.find(target);
 		if (object == null)
 		{
-			return null;
+			return;
 		}
 		outliner.drawOutline(object, config.outlineWidth(), color, config.outlineFeather());
 		drawLabel(graphics, object, label, color);
-		return null;
 	}
 
 	private static String stationLabel(BatchEntry entry, boolean active)
@@ -115,4 +148,3 @@ final class BatchSceneOverlay extends Overlay
 		graphics.drawString(text, location.getX(), location.getY());
 	}
 }
-

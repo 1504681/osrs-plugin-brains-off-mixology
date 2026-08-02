@@ -8,10 +8,13 @@ final class BatchStateResolver
 {
 	Guidance resolve(
 		BatchPlan plan,
+		CyclePlan cycle,
+		boolean refilling,
 		List<InventorySlot> inventory,
 		Potion vesselPotion,
 		int[] mixerSlots,
-		Map<Station, Potion> activeStations)
+		Map<Station, Potion> activeStations,
+		Guidance previousGuidance)
 	{
 		if (!plan.isValid())
 		{
@@ -21,145 +24,239 @@ final class BatchStateResolver
 		{
 			return Guidance.empty();
 		}
-
-		boolean[] occupied = new boolean[plan.size()];
-		for (int slot = 0; slot < plan.size(); slot++)
+		if (cycle == null || !cycle.isValid())
 		{
-			InventorySlot actual = inventory.get(slot);
-			if (actual.isEmpty())
-			{
-				continue;
-			}
-			if (!actual.isPotion())
-			{
-				return Guidance.invalid("Clear inventory slot " + (slot + 1) + " before continuing.");
-			}
-			Potion expected = plan.get(slot).getPotion();
-			if (actual.getPotion() != expected)
-			{
-				return Guidance.invalid(
-					"Slot " + (slot + 1) + " should be " + expected.name()
-						+ ", but contains " + actual.getPotion().name() + ".");
-			}
-			occupied[slot] = true;
+			return Guidance.invalid(cycle == null ? "Start a new batch." : cycle.getError());
+		}
+		if (!cycle.containsPotionSlots(inventory))
+		{
+			return Guidance.invalid("A potion moved outside the projected batch; pull a lever to start a new cycle.");
+		}
+		if (activeStations.size() > 1)
+		{
+			return Guidance.invalid("More than one processing station contains a potion.");
 		}
 
-		for (int slot = plan.size(); slot < inventory.size(); slot++)
+		if (refilling)
 		{
-			if (inventory.get(slot).isPotion())
-			{
-				return Guidance.invalid("A mixology potion is outside the configured batch slots.");
-			}
+			return resolveMixing(plan, cycle, inventory, vesselPotion, mixerSlots, activeStations);
+		}
+		return resolveProcessing(cycle, inventory, activeStations, previousGuidance);
+	}
+
+	private Guidance resolveMixing(
+		BatchPlan plan,
+		CyclePlan cycle,
+		List<InventorySlot> inventory,
+		Potion vesselPotion,
+		int[] mixerSlots,
+		Map<Station, Potion> activeStations)
+	{
+		if (!activeStations.isEmpty())
+		{
+			return Guidance.invalid("Collect the station potion before starting a new mixing cycle.");
 		}
 
-		BatchEntry activeEntry = null;
-		for (Map.Entry<Station, Potion> active : activeStations.entrySet())
+		int inventoryPotionCount = countPotions(inventory);
+		int potionCapacity = cycle.getPotionCapacity();
+		if (potionCapacity == 0)
 		{
-			if (active.getValue() == null)
-			{
-				continue;
-			}
-			if (activeEntry != null)
-			{
-				return Guidance.invalid("More than one processing station contains a potion.");
-			}
-			int firstGap = firstMissing(occupied);
-			if (firstGap < 0)
-			{
-				return Guidance.invalid("A station contains a potion outside the configured batch.");
-			}
-			BatchEntry expected = plan.get(firstGap);
-			if (expected.getPotion() != active.getValue() || expected.getStation() != active.getKey())
-			{
-				return Guidance.invalid(
-					"Wrong station: slot " + (firstGap + 1) + " needs "
-						+ expected.getStation().getObjectName() + " for " + expected.getPotion().name() + ".");
-			}
-			occupied[firstGap] = true;
-			activeEntry = expected;
+			return Guidance.invalid("Clear at least one inventory slot to start mixing.");
+		}
+		if (inventoryPotionCount >= potionCapacity)
+		{
+			return resolveProcessing(cycle, inventory, activeStations, Guidance.outside());
 		}
 
-		int firstGap = firstMissing(occupied);
-		boolean mixerHasContents = hasMixerContents(mixerSlots);
+		int nextSlot = cycle.firstEmptySlot(inventory);
+		if (nextSlot < 0)
+		{
+			return Guidance.invalid("Clear an inventory slot reserved for the next potion.");
+		}
+
+		Potion expected = nextNeededPotion(plan, cycle, inventory, nextSlot);
+		if (expected == null)
+		{
+			return Guidance.invalid("The configured recipe totals are already present; process or adjust the batch.");
+		}
 
 		if (vesselPotion != null)
 		{
-			if (activeEntry != null)
-			{
-				return Guidance.invalid("Collect the station potion before mixing another batch potion.");
-			}
-			if (firstGap < 0)
-			{
-				return Guidance.invalid("The mixing vessel contains an extra potion.");
-			}
-			BatchEntry expected = plan.get(firstGap);
-			if (expected.getPotion() != vesselPotion)
-			{
-				return Guidance.invalid(
-					"The vessel contains " + vesselPotion.name() + "; slot " + (firstGap + 1)
-						+ " expects " + expected.getPotion().name() + ".");
-			}
-			String gapError = validateNoLaterItems(occupied, firstGap);
-			if (gapError != null)
-			{
-				return Guidance.invalid(gapError);
-			}
-			return Guidance.mixing(expected, MixStep.resolve(expected.getPotion(), mixerSlots, true));
+			BatchEntry entry = cycle.entryForSlot(nextSlot, vesselPotion);
+			return Guidance.mixing(entry, MixStep.resolve(vesselPotion, mixerSlots, true));
 		}
 
-		if (activeEntry != null)
+		BatchEntry entry = cycle.entryForSlot(nextSlot, expected);
+		MixStep step = MixStep.resolve(expected, mixerSlots, false);
+		if (step.getKind() == MixStep.Kind.INVALID)
 		{
-			if (firstGap >= 0)
-			{
-				return Guidance.invalid("Finish mixing the full inventory before processing it.");
-			}
-			return Guidance.processing(activeEntry, true);
+			// A mistaken lever must not replace the intended recipe with an error.
+			// Keep the correct sequence visible and reconcile the actual potion once mixed.
+			step = MixStep.resolve(expected, new int[]{0, 0, 0}, false);
 		}
+		return Guidance.mixing(entry, step);
+	}
 
-		if (mixerHasContents)
+	private Guidance resolveProcessing(
+		CyclePlan cycle,
+		List<InventorySlot> inventory,
+		Map<Station, Potion> activeStations,
+		Guidance previousGuidance)
+	{
+		if (!activeStations.isEmpty())
 		{
-			if (firstGap < 0)
+			Map.Entry<Station, Potion> active = activeStations.entrySet().iterator().next();
+			BatchEntry previousEntry = previousGuidance == null ? null : previousGuidance.getEntry();
+			if (previousEntry != null
+				&& (previousGuidance.getAction() == Guidance.Action.USE_STATION
+					|| previousGuidance.getAction() == Guidance.Action.WAIT_STATION))
 			{
-				return Guidance.invalid("The mixer contains ingredients after the batch is full.");
-			}
-			String gapError = validateNoLaterItems(occupied, firstGap);
-			if (gapError != null)
-			{
-				return Guidance.invalid(gapError);
-			}
-			BatchEntry expected = plan.get(firstGap);
-			return Guidance.mixing(expected, MixStep.resolve(expected.getPotion(), mixerSlots, false));
-		}
-
-		if (firstGap >= 0)
-		{
-			String gapError = validateNoLaterItems(occupied, firstGap);
-			if (gapError != null)
-			{
-				return Guidance.invalid(gapError);
-			}
-			for (int slot = 0; slot < firstGap; slot++)
-			{
-				if (inventory.get(slot).isFinished())
+				if (previousEntry.getStation() != active.getKey()
+					|| previousEntry.getPotion() != active.getValue())
 				{
-					return Guidance.invalid("Finish mixing the full inventory before processing it.");
+					return Guidance.invalid(
+						"Wrong station: use " + previousEntry.getStation().getObjectName()
+							+ " for " + previousEntry.getPotion().name() + ".");
 				}
+				return Guidance.processing(previousEntry, true);
 			}
-			BatchEntry expected = plan.get(firstGap);
-			return Guidance.mixing(expected, MixStep.resolve(expected.getPotion(), mixerSlots, false));
+
+			BatchEntry recovered = recoverActiveEntry(cycle, inventory, active.getKey(), active.getValue());
+			return Guidance.processing(recovered, true);
 		}
 
-		for (int slot = 0; slot < plan.size(); slot++)
+		for (int rank = 0; rank < cycle.size(); rank++)
 		{
-			if (!inventory.get(slot).isFinished())
+			int slot = cycle.slotAtRank(rank);
+			InventorySlot actual = inventory.get(slot);
+			if (actual.isPotion() && !actual.isFinished())
 			{
-				return Guidance.processing(plan.get(slot), false);
+				return Guidance.processing(cycle.entryAtRank(rank, actual.getPotion()), false);
 			}
 		}
 		return Guidance.complete();
 	}
 
-	private static boolean hasMixerContents(int[] mixerSlots)
+	private static BatchEntry recoverActiveEntry(
+		CyclePlan cycle,
+		List<InventorySlot> inventory,
+		Station station,
+		Potion potion)
+	{
+		for (int rank = 0; rank < cycle.size(); rank++)
+		{
+			BatchEntry candidate = cycle.entryAtRank(rank, potion);
+			if (candidate.getStation() == station && inventory.get(candidate.getInventorySlot()).isEmpty())
+			{
+				return candidate;
+			}
+		}
+		for (int rank = 0; rank < cycle.size(); rank++)
+		{
+			BatchEntry candidate = cycle.entryAtRank(rank, potion);
+			if (candidate.getStation() == station)
+			{
+				return candidate;
+			}
+		}
+		return cycle.entryAtRank(0, potion);
+	}
+
+	static Potion nextNeededPotion(
+		BatchPlan plan,
+		CyclePlan cycle,
+		List<InventorySlot> inventory,
+		int nextSlot)
+	{
+		BatchEntry nextEntry = cycle.entryForSlot(nextSlot, plan.get(0).getPotion());
+		if (nextEntry == null)
+		{
+			return null;
+		}
+		Station station = nextEntry.getStation();
+		EnumMap<Potion, Integer> present = new EnumMap<>(Potion.class);
+		for (int rank = 0; rank < cycle.size(); rank++)
+		{
+			int inventorySlot = cycle.slotAtRank(rank);
+			InventorySlot actual = inventory.get(inventorySlot);
+			if (!actual.isPotion())
+			{
+				continue;
+			}
+			BatchEntry assigned = cycle.entryAtRank(rank, actual.getPotion());
+			if (assigned.getStation() == station)
+			{
+				present.merge(actual.getPotion(), 1, Integer::sum);
+			}
+		}
+		for (BatchEntry entry : plan.getEntries())
+		{
+			if (entry.getStation() != station)
+			{
+				continue;
+			}
+			Potion potion = entry.getPotion();
+			if (present.getOrDefault(potion, 0) < plan.getConfiguredCount(station, potion))
+			{
+				return potion;
+			}
+		}
+		return null;
+	}
+
+	private static int countPotions(List<InventorySlot> inventory)
+	{
+		int count = 0;
+		for (InventorySlot slot : inventory)
+		{
+			if (slot.isPotion())
+			{
+				count++;
+			}
+		}
+		return count;
+	}
+
+	static EnumMap<Potion, Integer> potionCounts(List<InventorySlot> inventory)
+	{
+		EnumMap<Potion, Integer> counts = new EnumMap<>(Potion.class);
+		for (InventorySlot slot : inventory)
+		{
+			if (slot.isPotion())
+			{
+				counts.merge(slot.getPotion(), 1, Integer::sum);
+			}
+		}
+		return counts;
+	}
+
+	/**
+	 * A delivered batch can roll into the next refill once only two non-MAL
+	 * potions remain. MAL is deliberately ignored because retained Mixalots
+	 * should carry into the next configured batch.
+	 */
+	static boolean shouldStartRollingRefill(List<InventorySlot> inventory)
+	{
+		int nonMixalotCount = 0;
+		for (InventorySlot slot : inventory)
+		{
+			if (!slot.isPotion())
+			{
+				continue;
+			}
+			if (!slot.isFinished())
+			{
+				return false;
+			}
+			if (slot.getPotion() != Potion.MAL && ++nonMixalotCount > 2)
+			{
+				return false;
+			}
+		}
+		return true;
+	}
+
+	static boolean hasMixerContents(int[] mixerSlots)
 	{
 		for (int slot : mixerSlots)
 		{
@@ -169,30 +266,6 @@ final class BatchStateResolver
 			}
 		}
 		return false;
-	}
-
-	private static int firstMissing(boolean[] occupied)
-	{
-		for (int i = 0; i < occupied.length; i++)
-		{
-			if (!occupied[i])
-			{
-				return i;
-			}
-		}
-		return -1;
-	}
-
-	private static String validateNoLaterItems(boolean[] occupied, int firstGap)
-	{
-		for (int i = firstGap + 1; i < occupied.length; i++)
-		{
-			if (occupied[i])
-			{
-				return "Inventory order has a gap before slot " + (i + 1) + ".";
-			}
-		}
-		return null;
 	}
 
 	static Map<Station, Potion> noActiveStations()

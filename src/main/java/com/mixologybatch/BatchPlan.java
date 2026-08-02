@@ -111,5 +111,30 @@ final class BatchPlan
 	{
 		return entries;
 	}
-}
 
+	int getConfiguredCount(Potion potion)
+	{
+		int count = 0;
+		for (BatchEntry entry : entries)
+		{
+			if (entry.getPotion() == potion)
+			{
+				count++;
+			}
+		}
+		return count;
+	}
+
+	int getConfiguredCount(Station station, Potion potion)
+	{
+		int count = 0;
+		for (BatchEntry entry : entries)
+		{
+			if (entry.getStation() == station && entry.getPotion() == potion)
+			{
+				count++;
+			}
+		}
+		return count;
+	}
+}

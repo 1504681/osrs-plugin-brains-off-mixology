@@ -2,6 +2,8 @@
 
 A RuneLite Plugin Hub-style plugin for the low-attention, premade-inventory Mastering Mixology method. It guides one manual click at a time; it does not click, move the mouse, select menu entries, or automate gameplay.
 
+All overlays and guidance activate only while the Mastering Mixology order interface is visible inside the laboratory. Leaving the playable room immediately hides the plugin and clears its transient cycle state.
+
 ## The default batch
 
 The defaults reproduce the potion totals in the reference inventory:
@@ -28,12 +30,20 @@ Retort is last by default so its repeated-click interaction cannot accidentally 
 
 ## What the plugin shows
 
-- During mixing, only the next lever is outlined and labelled (`1 M`, `2 A`, `3 L`), followed by `4 MIX` on the vessel.
+- During mixing, the complete recipe is visible at once: every required lever is outlined with its step number (`1`, `2`, `3`) while the vessel shows `4`. Repeated ingredients combine their step numbers on the same lever. The instruction panel shows the letter sequence separately, such as `M A L`.
+- A non-blocking potion queue shows the previous two completed potions, the current potion, and the next three potions. Every row includes the potion code and its complete three-letter recipe.
+- Clicking `Mix` predicts the next potion locally so its lever numbers appear immediately instead of waiting for the mixing animation. The prediction is reconciled with the actual inventory result and expires safely if the action does not complete.
 - The instruction panel shows the current inventory slot, potion code, complete four-click recipe, and the station batch that potion belongs to.
+- The panel always lists how many of every configured recipe remain in the inventory, including potions carried into a refill cycle.
 - Each inventory potion is marked `#1`, `#2`, or `#3` for its planned station batch.
-- Once the inventory is full, the correct processing station is outlined. It remains the target until that contiguous batch is finished, then the next station is highlighted.
+- Once the available potion slots are full, the correct processing station is outlined. It remains the target until that contiguous batch is finished, then the next station is highlighted.
 - After all 28 potions are processed, the conveyor is highlighted.
-- A wrong potion, inventory gap, wrong station, or total above 28 pauses guidance with a specific correction instead of silently drifting out of sync.
+- Deposited inventory gaps and recipes mixed out of the suggested order are accepted. Actual potions in the inventory count toward the configured recipe totals.
+- Using a lever while potions remain starts a rolling refill cycle around those existing potions. Wrong processing stations or a total above 28 still pause with a specific correction.
+- During delivery, MAL is ignored for the rolling-reset threshold. As soon as only two or fewer processed non-MAL potions remain, the conveyor highlight clears and a fresh mixing queue starts around every potion still carried.
+- Held Digweed and other non-potion items reserve their inventory slots for the current cycle instead of pausing guidance. The panel shows the reduced potion capacity (for example, `27/28 potion slots available`) and the remaining slots stay station-ordered.
+- Refill selection is calculated separately for each contiguous station batch. It completes every recipe assigned to station batch `#1` before generating `#2`, then `#3`; it never satisfies a recipe by making all three station variants consecutively.
+- Both unfinished and finished inventory item IDs count toward their assigned station batch. Active-station varbits keep a potion accounted for while it is temporarily removed from the inventory, while potions removed by the conveyor cease to count toward the next refill.
 
 ## Custom batches
 
@@ -41,7 +51,7 @@ Open the plugin configuration and set a count from 0 to 28 for each recipe. The 
 
 For example, a count of 3 makes one variant for each station, a count of 6 makes two for each station, and a count of 4 makes two for the first station plus one for each remaining station.
 
-Start with an empty inventory and do not reorder potion slots mid-batch. The plugin intentionally treats inventory position as the plan because all three processed variants share the same finished item ID.
+For the first cycle, starting with an empty inventory is simplest. Later cycles can retain unfinished or finished potions: the plugin projects the station batches over those existing potions and the empty slots that will be filled next.
 
 ## Development
 
@@ -59,7 +69,7 @@ The repository uses `build=standard` and has no third-party runtime dependencies
 
 - The helper is active only in the Mastering Mixology lab region.
 - It reads RuneLite's mixer-slot, vessel, inventory, and station varbits; no data leaves the client.
-- Digweed-modified potions are outside this fixed-batch workflow.
+- Holding Digweed is supported. The helper does not decide which potion should receive the Digweed bonus.
 - The established Mastering Mixology plugin can still be used for its order UI, quick-action timing, and Digweed features. If its inventory recipe labels are enabled, they may visually share space with this plugin's small batch numbers.
 
 ## Acknowledgements
