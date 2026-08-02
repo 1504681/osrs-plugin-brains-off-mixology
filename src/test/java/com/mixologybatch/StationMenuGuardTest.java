@@ -1,8 +1,11 @@
 package com.mixologybatch;
 
+import net.runelite.api.MenuAction;
 import org.junit.Test;
 
+import static org.junit.Assert.assertEquals;
 import static org.junit.Assert.assertFalse;
+import static org.junit.Assert.assertNull;
 import static org.junit.Assert.assertSame;
 import static org.junit.Assert.assertTrue;
 
@@ -64,5 +67,34 @@ public class StationMenuGuardTest
 			assertSame(station, StationMenuGuard.stationForObjectId(
 				station.getLabObject().getObjectId()));
 		}
+	}
+
+	@Test
+	public void menuSwapUsesTheHighestPriorityExactObject()
+	{
+		StationMenuGuard.MenuScan scan = new StationMenuGuard.MenuScan();
+		int alembic = Station.CRYSTALLISE.getLabObject().getObjectId();
+		int retort = Station.CONCENTRATE.getLabObject().getObjectId();
+		scan.accept(0, alembic, 10, 20, MenuAction.GAME_OBJECT_FIRST_OPTION, "Crystallise");
+		scan.accept(1, alembic, 10, 20, MenuAction.GAME_OBJECT_SECOND_OPTION, "Check");
+		scan.accept(2, retort, 11, 20, MenuAction.GAME_OBJECT_SECOND_OPTION, "Check");
+		scan.accept(3, retort, 11, 20, MenuAction.GAME_OBJECT_FIRST_OPTION, "Concentrate");
+
+		StationMenuGuard.MenuSwap swap = scan.select();
+
+		assertEquals(Station.CONCENTRATE, swap.getStation());
+		assertEquals(3, swap.getProcessingIndex());
+		assertEquals(2, swap.getCheckIndex());
+	}
+
+	@Test
+	public void menuSwapNeverBorrowsCheckFromAnotherSceneObject()
+	{
+		StationMenuGuard.MenuScan scan = new StationMenuGuard.MenuScan();
+		int agitator = Station.HOMOGENISE.getLabObject().getObjectId();
+		scan.accept(0, agitator, 10, 20, MenuAction.GAME_OBJECT_SECOND_OPTION, "Check");
+		scan.accept(1, agitator, 11, 20, MenuAction.GAME_OBJECT_FIRST_OPTION, "Homogenise");
+
+		assertNull(scan.select());
 	}
 }

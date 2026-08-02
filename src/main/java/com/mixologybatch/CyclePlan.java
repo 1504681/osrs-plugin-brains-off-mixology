@@ -5,6 +5,7 @@ import java.util.Collections;
 import java.util.HashSet;
 import java.util.List;
 import java.util.Set;
+import net.runelite.api.gameval.ItemID;
 
 /**
  * Maps the configured logical station batches onto physical inventory slots.
@@ -16,17 +17,23 @@ final class CyclePlan
 	private final BatchPlan target;
 	private final List<Integer> inventorySlots;
 	private final Set<Integer> blockedSlots;
+	private final Set<Integer> persistentBlockedSlots;
+	private final Set<Integer> observedDigweedSlots;
 	private final String error;
 
 	private CyclePlan(
 		BatchPlan target,
 		List<Integer> inventorySlots,
 		Set<Integer> blockedSlots,
+		Set<Integer> persistentBlockedSlots,
+		Set<Integer> observedDigweedSlots,
 		String error)
 	{
 		this.target = target;
 		this.inventorySlots = inventorySlots;
 		this.blockedSlots = blockedSlots;
+		this.persistentBlockedSlots = persistentBlockedSlots;
+		this.observedDigweedSlots = observedDigweedSlots;
 		this.error = error;
 	}
 
@@ -71,6 +78,7 @@ final class CyclePlan
 
 		Collections.sort(slots);
 		Set<Integer> blocked = new HashSet<>();
+		Set<Integer> digweed = new HashSet<>();
 		for (int slot : slots)
 		{
 			InventorySlot actual = inventory.get(slot);
@@ -78,17 +86,29 @@ final class CyclePlan
 			{
 				blocked.add(slot);
 			}
+			if (actual.getItemId() == ItemID.MM_LAB_SPECIAL_HERB)
+			{
+				digweed.add(slot);
+			}
 		}
 		return new CyclePlan(
 			target,
 			Collections.unmodifiableList(slots),
 			blocked,
+			new HashSet<>(digweed),
+			digweed,
 			null);
 	}
 
 	private static CyclePlan invalid(BatchPlan target, String error)
 	{
-		return new CyclePlan(target, Collections.emptyList(), Collections.emptySet(), error);
+		return new CyclePlan(
+			target,
+			Collections.emptyList(),
+			new HashSet<>(),
+			new HashSet<>(),
+			new HashSet<>(),
+			error);
 	}
 
 	boolean isValid()
@@ -119,18 +139,51 @@ final class CyclePlan
 	}
 
 	/**
-	 * Reserve non-potion slots for the remainder of this cycle. If the game
-	 * later places a potion into a reserved slot, resume tracking that slot.
-	 * An empty reserved slot stays reserved so a disappearing digweed cannot
-	 * make guidance jump backwards to an earlier station batch.
+	 * Non-potion items block only their current slots. A consumed Digweed keeps
+	 * its old slot reserved so guidance cannot jump backwards, while moving the
+	 * Digweed transfers that reservation to its new slot.
 	 */
 	void observeInventory(List<InventorySlot> inventory)
 	{
+		Set<Integer> currentDigweedSlots = new HashSet<>();
+		for (int slot = 0; slot < inventory.size(); slot++)
+		{
+			InventorySlot actual = inventory.get(slot);
+			if (actual.getItemId() == ItemID.MM_LAB_SPECIAL_HERB)
+			{
+				currentDigweedSlots.add(slot);
+			}
+		}
+
+		Set<Integer> removedDigweedSlots = new HashSet<>(observedDigweedSlots);
+		removedDigweedSlots.removeAll(currentDigweedSlots);
+		Set<Integer> addedDigweedSlots = new HashSet<>(currentDigweedSlots);
+		addedDigweedSlots.removeAll(observedDigweedSlots);
+		int movedDigweedCount = Math.min(removedDigweedSlots.size(), addedDigweedSlots.size());
+		for (int slot : removedDigweedSlots)
+		{
+			if (movedDigweedCount-- <= 0)
+			{
+				break;
+			}
+			persistentBlockedSlots.remove(slot);
+		}
+		for (int slot : currentDigweedSlots)
+		{
+			if (inventorySlots.contains(slot))
+			{
+				persistentBlockedSlots.add(slot);
+			}
+		}
+
+		blockedSlots.clear();
+		blockedSlots.addAll(persistentBlockedSlots);
 		for (int slot : inventorySlots)
 		{
 			InventorySlot actual = inventory.get(slot);
 			if (actual.isPotion())
 			{
+				persistentBlockedSlots.remove(slot);
 				blockedSlots.remove(slot);
 			}
 			else if (!actual.isEmpty())
@@ -138,6 +191,9 @@ final class CyclePlan
 				blockedSlots.add(slot);
 			}
 		}
+
+		observedDigweedSlots.clear();
+		observedDigweedSlots.addAll(currentDigweedSlots);
 	}
 
 	int getPotionCapacity()

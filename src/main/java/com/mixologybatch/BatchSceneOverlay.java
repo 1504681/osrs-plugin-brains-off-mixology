@@ -54,7 +54,6 @@ final class BatchSceneOverlay extends Overlay
 			return null;
 		}
 
-		renderPermanentLeverMarkers(graphics);
 		Guidance guidance = plugin.getGuidance();
 		if (guidance.getPhase() == Guidance.Phase.MIXING)
 		{
@@ -64,6 +63,7 @@ final class BatchSceneOverlay extends Overlay
 				plugin.getNextQueuedPotion());
 			return null;
 		}
+		renderPermanentLeverMarkers(graphics);
 
 		LabObject target;
 		Color color;
@@ -119,6 +119,12 @@ final class BatchSceneOverlay extends Overlay
 			{
 				continue;
 			}
+			drawLabel(
+				graphics,
+				object,
+				Character.toString(component.getCode()),
+				component.getColor(),
+				MARKER_OFFSET);
 
 			String currentLabel = leverLabel(potion, component);
 			if (currentLabel != null)

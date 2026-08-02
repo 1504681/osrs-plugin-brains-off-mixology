@@ -81,8 +81,7 @@ public class MixologyBatchPlugin extends Plugin
 	private MixPrediction mixPrediction;
 	private Station partialProcessingStation;
 	private int gameTickCounter;
-	private boolean refilling = true;
-	private boolean finishingPartialBatch;
+	private BatchMode batchMode = BatchMode.REFILLING;
 	private boolean inLab;
 
 	@Override
@@ -132,46 +131,29 @@ public class MixologyBatchPlugin extends Plugin
 
 		Menu menu = client.getMenu();
 		MenuEntry[] entries = menu.getMenuEntries();
-		int processingIndex = -1;
-		int checkIndex = -1;
-		Station station = null;
+		StationMenuGuard.MenuScan scan = new StationMenuGuard.MenuScan();
 
 		for (int i = 0; i < entries.length; i++)
 		{
 			MenuEntry entry = entries[i];
-			Station entryStation = StationMenuGuard.stationForObjectId(entry.getIdentifier());
-			if (entryStation == null)
-			{
-				continue;
-			}
-
-			if (station == null)
-			{
-				station = entryStation;
-			}
-			if (entryStation != station)
-			{
-				continue;
-			}
-
-			if (entry.getType() == MenuAction.GAME_OBJECT_FIRST_OPTION)
-			{
-				processingIndex = i;
-			}
-			else if ("Check".equalsIgnoreCase(entry.getOption()))
-			{
-				checkIndex = i;
-			}
+			scan.accept(
+				i,
+				entry.getIdentifier(),
+				entry.getParam0(),
+				entry.getParam1(),
+				entry.getType(),
+				entry.getOption());
 		}
 
-		if (station == null || canUseStation(station) || processingIndex < 0 || checkIndex < 0)
+		StationMenuGuard.MenuSwap swap = scan.select();
+		if (swap == null || canUseStation(swap.getStation()))
 		{
 			return;
 		}
 
-		MenuEntry processingEntry = entries[processingIndex];
-		entries[processingIndex] = entries[checkIndex];
-		entries[checkIndex] = processingEntry;
+		MenuEntry processingEntry = entries[swap.getProcessingIndex()];
+		entries[swap.getProcessingIndex()] = entries[swap.getCheckIndex()];
+		entries[swap.getCheckIndex()] = processingEntry;
 		menu.setMenuEntries(entries);
 	}
 
@@ -184,7 +166,7 @@ public class MixologyBatchPlugin extends Plugin
 		}
 
 		Station clickedStation = StationMenuGuard.stationForObjectId(event.getId());
-		if (refilling
+		if (batchMode.isRefilling()
 			&& clickedStation != null
 			&& clickedStation == partialProcessingStation
 			&& event.getMenuAction() == MenuAction.GAME_OBJECT_FIRST_OPTION
@@ -192,8 +174,7 @@ public class MixologyBatchPlugin extends Plugin
 		{
 			// Treat choosing the available processing station before the inventory
 			// is full as an explicit request to finish and deposit this partial batch.
-			finishingPartialBatch = true;
-			refilling = false;
+			batchMode = BatchMode.FINISHING_PARTIAL;
 			resetActionQueue();
 			updateState();
 			return;
@@ -303,12 +284,13 @@ public class MixologyBatchPlugin extends Plugin
 		List<InventorySlot> planningInventory = inventory;
 		Potion planningVesselPotion = vesselPotion;
 		int[] planningMixerSlots = mixerSlots;
-		if (mixPrediction != null && inventory.get(mixPrediction.inventorySlot).isEmpty())
+		if (mixPrediction != null
+			&& inventory.get(mixPrediction.getInventorySlot()).isEmpty())
 		{
 			planningInventory = new ArrayList<>(inventory);
 			planningInventory.set(
-				mixPrediction.inventorySlot,
-				InventorySlot.fromItemId(mixPrediction.potion.getUnfinishedItemId()));
+				mixPrediction.getInventorySlot(),
+				InventorySlot.fromItemId(mixPrediction.getPotion().getUnfinishedItemId()));
 			planningVesselPotion = null;
 			planningMixerSlots = new int[]{0, 0, 0};
 		}
@@ -319,20 +301,24 @@ public class MixologyBatchPlugin extends Plugin
 		if (!wasInLab || cyclePlan == null || !cyclePlan.belongsTo(plan))
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
-			refilling = inventoryPotionCount == 0 || mixingActivity;
-			finishingPartialBatch = !refilling
-				&& cyclePlan.isValid()
-				&& inventoryPotionCount < cyclePlan.getPotionCapacity()
-				&& BatchStateResolver.firstUnfinishedEntry(cyclePlan, inventory) != null;
+			batchMode = cyclePlan.isValid()
+				? BatchMode.initialize(
+					inventoryPotionCount,
+					activeStations.size(),
+					cyclePlan.getPotionCapacity(),
+					mixingActivity,
+					BatchStateResolver.firstUnfinishedEntry(cyclePlan, inventory) != null)
+				: BatchMode.PROCESSING;
 		}
 
-		if (!refilling && !finishingPartialBatch && mixingActivity && activeStations.isEmpty())
+		if (batchMode == BatchMode.PROCESSING && mixingActivity && activeStations.isEmpty())
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
-			refilling = true;
-			finishingPartialBatch = false;
+			batchMode = BatchMode.REFILLING;
 		}
-		else if (refilling && cyclePlan != null && !cyclePlan.containsPotionSlots(planningInventory))
+		else if (batchMode.isRefilling()
+			&& cyclePlan != null
+			&& !cyclePlan.containsPotionSlots(planningInventory))
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
 		}
@@ -341,32 +327,30 @@ public class MixologyBatchPlugin extends Plugin
 			cyclePlan.observeInventory(planningInventory);
 		}
 
-		if (refilling
+		if (batchMode.isRefilling()
 			&& cyclePlan != null
 			&& cyclePlan.isValid()
 			&& cyclePlan.getPotionCapacity() > 0
 			&& inventoryPotionCount >= cyclePlan.getPotionCapacity()
 			&& !mixingActivity)
 		{
-			refilling = false;
-			finishingPartialBatch = false;
+			batchMode = BatchMode.PROCESSING;
 		}
-		else if (!refilling
-			&& !finishingPartialBatch
+		else if (batchMode.allowsRollingRefill()
 			&& activeStations.isEmpty()
 			&& !mixingActivity
 			&& BatchStateResolver.shouldStartRollingRefill(planningInventory))
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
-			refilling = true;
-			finishingPartialBatch = false;
+			batchMode = BatchMode.REFILLING;
 			resetActionQueue();
 		}
-		else if (!refilling && inventoryPotionCount == 0 && activeStations.isEmpty())
+		else if (!batchMode.isRefilling()
+			&& inventoryPotionCount == 0
+			&& activeStations.isEmpty())
 		{
 			cyclePlan = CyclePlan.create(plan, planningInventory);
-			refilling = true;
-			finishingPartialBatch = false;
+			batchMode = BatchMode.REFILLING;
 		}
 
 		BatchEntry partialEntry = activeStations.isEmpty()
@@ -388,7 +372,7 @@ public class MixologyBatchPlugin extends Plugin
 		guidance = resolver.resolve(
 			plan,
 			cyclePlan,
-			refilling,
+			batchMode.isRefilling(),
 			planningInventory,
 			planningVesselPotion,
 			planningMixerSlots,
@@ -399,12 +383,11 @@ public class MixologyBatchPlugin extends Plugin
 
 	private void handleLeverClick(Component clicked)
 	{
-		if (!refilling)
+		if (!batchMode.isRefilling())
 		{
 			mixPrediction = null;
 			cyclePlan = CyclePlan.create(plan, readInventory());
-			refilling = true;
-			finishingPartialBatch = false;
+			batchMode = BatchMode.REFILLING;
 			trackedPotion = null;
 			trackedStep = 1;
 			updateState();
@@ -427,7 +410,10 @@ public class MixologyBatchPlugin extends Plugin
 
 	private void handleMixClick()
 	{
-		if (trackedPotion == null || cyclePlan == null || !cyclePlan.isValid())
+		if (trackedPotion == null
+			|| mixPrediction != null
+			|| cyclePlan == null
+			|| !cyclePlan.isValid())
 		{
 			return;
 		}
@@ -440,7 +426,6 @@ public class MixologyBatchPlugin extends Plugin
 		}
 
 		Potion predictedPotion = trackedPotion;
-		addPreviousPotion(predictedPotion);
 		mixPrediction = new MixPrediction(
 			predictedPotion,
 			inventorySlot,
@@ -458,37 +443,16 @@ public class MixologyBatchPlugin extends Plugin
 			return;
 		}
 
-		Potion actualPotion = null;
-		InventorySlot predictedSlot = inventory.get(mixPrediction.inventorySlot);
-		if (predictedSlot.isPotion())
-		{
-			actualPotion = predictedSlot.getPotion();
-		}
-		else
-		{
-			EnumMap<Potion, Integer> actualCounts = BatchStateResolver.potionCounts(inventory);
-			for (Potion potion : Potion.values())
-			{
-				if (actualCounts.getOrDefault(potion, 0)
-					> mixPrediction.baselineCounts.getOrDefault(potion, 0))
-				{
-					actualPotion = potion;
-					break;
-				}
-			}
-		}
+		Potion actualPotion = mixPrediction.findActualPotion(inventory);
 
 		if (actualPotion != null)
 		{
-			if (actualPotion != mixPrediction.potion)
-			{
-				replaceLastMixedPotion(actualPotion);
-			}
+			addPreviousPotion(actualPotion);
 			mixPrediction = null;
 			trackedPotion = null;
 			trackedStep = 1;
 		}
-		else if (gameTickCounter > mixPrediction.expiresAfterTick)
+		else if (mixPrediction.isExpired(gameTickCounter))
 		{
 			mixPrediction = null;
 			trackedPotion = null;
@@ -540,7 +504,7 @@ public class MixologyBatchPlugin extends Plugin
 
 	private List<Potion> buildPlannedPotionQueue(List<InventorySlot> inventory, int maximum)
 	{
-		if (!refilling || cyclePlan == null || !cyclePlan.isValid())
+		if (!batchMode.isRefilling() || cyclePlan == null || !cyclePlan.isValid())
 		{
 			return Collections.emptyList();
 		}
@@ -573,16 +537,6 @@ public class MixologyBatchPlugin extends Plugin
 		{
 			previousQueuePotions.removeFirst();
 		}
-	}
-
-	private void replaceLastMixedPotion(Potion actualPotion)
-	{
-		if (previousQueuePotions.isEmpty())
-		{
-			return;
-		}
-		previousQueuePotions.removeLast();
-		previousQueuePotions.addLast(actualPotion);
 	}
 
 	private void resetActionQueue()
@@ -665,8 +619,7 @@ public class MixologyBatchPlugin extends Plugin
 		partialProcessingStation = null;
 		currentPotionCounts.clear();
 		resetActionQueue();
-		refilling = true;
-		finishingPartialBatch = false;
+		batchMode = BatchMode.REFILLING;
 		guidance = Guidance.outside();
 	}
 
@@ -717,26 +670,6 @@ public class MixologyBatchPlugin extends Plugin
 	Potion getNextQueuedPotion()
 	{
 		return upcomingQueuePotions.size() > 1 ? upcomingQueuePotions.get(1) : null;
-	}
-
-	private static final class MixPrediction
-	{
-		private final Potion potion;
-		private final int inventorySlot;
-		private final EnumMap<Potion, Integer> baselineCounts;
-		private final int expiresAfterTick;
-
-		private MixPrediction(
-			Potion potion,
-			int inventorySlot,
-			EnumMap<Potion, Integer> baselineCounts,
-			int expiresAfterTick)
-		{
-			this.potion = potion;
-			this.inventorySlot = inventorySlot;
-			this.baselineCounts = baselineCounts;
-			this.expiresAfterTick = expiresAfterTick;
-		}
 	}
 
 	@Provides

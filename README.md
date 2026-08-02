@@ -61,7 +61,7 @@ For the first cycle, starting with an empty inventory is simplest. Later cycles 
 Requirements: Java 11.
 
 ```text
-./gradlew clean test
+./gradlew clean build
 ```
 
 To launch a development RuneLite client, run the `MixologyBatchPluginTest.main` class from the IDE.

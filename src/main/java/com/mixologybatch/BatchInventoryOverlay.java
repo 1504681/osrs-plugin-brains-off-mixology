@@ -10,6 +10,10 @@ import net.runelite.client.ui.overlay.WidgetItemOverlay;
 
 final class BatchInventoryOverlay extends WidgetItemOverlay
 {
+	private static final Color FIRST_BATCH = new Color(80, 220, 255);
+	private static final Color SECOND_BATCH = new Color(255, 210, 70);
+	private static final Color THIRD_BATCH = new Color(255, 110, 230);
+
 	private final MixologyBatchPlugin plugin;
 	private final MixologyBatchConfig config;
 
@@ -24,12 +28,16 @@ final class BatchInventoryOverlay extends WidgetItemOverlay
 	@Override
 	public void renderItemOverlay(Graphics2D graphics, int itemId, WidgetItem widgetItem)
 	{
-		if (!plugin.isInLab() || !config.showInventoryBatches() || Potion.fromItemId(itemId) == null)
+		if (!plugin.isInLab() || !config.showInventoryBatches())
+		{
+			return;
+		}
+		Potion potion = Potion.fromItemId(itemId);
+		if (potion == null)
 		{
 			return;
 		}
 		int slot = widgetItem.getWidget().getIndex();
-		Potion potion = Potion.fromItemId(itemId);
 		BatchEntry entry = plugin.getCycleEntry(slot, potion);
 		if (entry == null)
 		{
@@ -57,14 +65,14 @@ final class BatchInventoryOverlay extends WidgetItemOverlay
 
 	private static Color batchColor(int stationOrdinal)
 	{
-		switch (stationOrdinal)
+			switch (stationOrdinal)
 		{
 			case 0:
-				return new Color(80, 220, 255);
+				return FIRST_BATCH;
 			case 1:
-				return new Color(255, 210, 70);
+				return SECOND_BATCH;
 			default:
-				return new Color(255, 110, 230);
+				return THIRD_BATCH;
 		}
 	}
 }

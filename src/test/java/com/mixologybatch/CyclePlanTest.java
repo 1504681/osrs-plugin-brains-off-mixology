@@ -3,6 +3,7 @@ package com.mixologybatch;
 import java.util.ArrayList;
 import java.util.EnumMap;
 import java.util.List;
+import net.runelite.api.gameval.ItemID;
 import org.junit.Test;
 
 import static org.junit.Assert.assertEquals;
@@ -90,6 +91,60 @@ public class CyclePlanTest
 			previousStationOrdinal = nextEntry.getStationOrdinal();
 			inventory.set(nextSlot, InventorySlot.fromItemId(nextPotion.getUnfinishedItemId()));
 		}
+	}
+
+	@Test
+	public void movingAnOrdinaryItemDoesNotPermanentlyShrinkCapacity()
+	{
+		List<InventorySlot> inventory = emptyInventory();
+		for (int slot = 0; slot < 4; slot++)
+		{
+			inventory.set(slot, InventorySlot.fromItemId(Potion.MAL.getUnfinishedItemId()));
+		}
+		inventory.set(4, InventorySlot.fromItemId(1));
+		CyclePlan cycle = CyclePlan.create(BatchPlan.defaultPlan(), inventory);
+		assertEquals(27, cycle.getPotionCapacity());
+
+		inventory.set(4, InventorySlot.empty());
+		inventory.set(5, InventorySlot.fromItemId(1));
+		cycle.observeInventory(inventory);
+		assertEquals(27, cycle.getPotionCapacity());
+		assertEquals(4, cycle.firstEmptySlot(inventory));
+
+		inventory.set(5, InventorySlot.empty());
+		cycle.observeInventory(inventory);
+		assertEquals(28, cycle.getPotionCapacity());
+	}
+
+	@Test
+	public void movingDigweedTransfersItsSingleReservation()
+	{
+		List<InventorySlot> inventory = emptyInventory();
+		inventory.set(4, InventorySlot.fromItemId(ItemID.MM_LAB_SPECIAL_HERB));
+		CyclePlan cycle = CyclePlan.create(BatchPlan.defaultPlan(), inventory);
+
+		inventory.set(4, InventorySlot.empty());
+		inventory.set(5, InventorySlot.fromItemId(ItemID.MM_LAB_SPECIAL_HERB));
+		cycle.observeInventory(inventory);
+
+		assertEquals(27, cycle.getPotionCapacity());
+		assertEquals(0, cycle.firstEmptySlot(inventory));
+	}
+
+	@Test
+	public void consumedDigweedReservationClearsWhenPotionFillsItsSlot()
+	{
+		List<InventorySlot> inventory = emptyInventory();
+		inventory.set(4, InventorySlot.fromItemId(ItemID.MM_LAB_SPECIAL_HERB));
+		CyclePlan cycle = CyclePlan.create(BatchPlan.defaultPlan(), inventory);
+
+		inventory.set(4, InventorySlot.empty());
+		cycle.observeInventory(inventory);
+		assertEquals(27, cycle.getPotionCapacity());
+
+		inventory.set(4, InventorySlot.fromItemId(Potion.MAL.getUnfinishedItemId()));
+		cycle.observeInventory(inventory);
+		assertEquals(28, cycle.getPotionCapacity());
 	}
 
 	private static List<InventorySlot> emptyInventory()
