@@ -1,60 +1,151 @@
 # Brains Off Mixology Helper
 
-A RuneLite Plugin Hub-style plugin for the low-attention, premade-inventory Mastering Mixology method. It guides one manual click at a time; it does not click, move the mouse, select menu entries, or automate gameplay.
+Brains Off Mixology Helper guides a repeatable, low-attention Mastering Mixology inventory from the first lever pull to the final deposit. You choose the potion totals once; the plugin arranges them into contiguous station batches so you can mix in inventory order, stay at one processing station at a time, and move only when that station's batch is finished.
 
-All overlays and guidance activate only while the Mastering Mixology order interface is visible inside the laboratory. Leaving the playable room immediately hides the plugin and clears its transient cycle state.
+The helper only appears inside the Mastering Mixology laboratory. It provides overlays and reorders existing menu entries, but it never clicks, moves the mouse, or performs an action for you.
 
-## The default batch
+![Brains Off Mixology Helper configuration](tutorial-images/01-configuration.png)
 
-The defaults reproduce the potion totals in the reference inventory:
+## Installation
 
-| Potion | Copies |
-| --- | ---: |
-| ALA | 3 |
-| ALL | 3 |
-| MMA | 3 |
-| MLL | 3 |
-| LLL | 3 |
-| AAM | 3 |
-| MML | 4 |
-| MAL | 6 |
-| **Total** | **28** |
+Once the plugin is available on the Plugin Hub:
 
-Every three copies are distributed one-per-station. Six MALs become two per station. The fourth MML goes into the first station batch. With the recommended station order, this produces three contiguous inventory batches:
+1. Open RuneLite's configuration panel.
+2. Select **Plugin Hub** at the bottom.
+3. Search for **Brains Off Mixology Helper** and select **Install**.
+4. Open the plugin settings and keep the default batch or enter your own potion totals.
 
-1. Alembic / Crystallise: 10 potions
-2. Agitator / Homogenise: 9 potions
-3. Retort / Concentrate: 9 potions
+The overlays stay hidden outside the minigame, so the plugin can remain enabled between sessions.
 
-Retort is last by default so its repeated-click interaction cannot accidentally pull a potion from a later batch.
+## Quick start
 
-## What the plugin shows
+1. Enter the Mastering Mixology laboratory. For the simplest first run, begin with an empty inventory.
+2. Stand at the mixing vessel and follow the numbered levers. Pull `1`, `2`, `3`, then click the vessel marked `4`.
+3. Continue until your available potion slots are filled. The potion queue advances immediately when you click **Mix**.
+4. Move to the highlighted processing station. Process that numbered inventory batch from top-left to bottom-right, then follow the highlight to the next station.
+5. When every potion is processed, use the green-highlighted conveyor. The helper will begin the next refill around any potions left in your inventory.
 
-- During mixing, the complete recipe is visible at once: every required lever is outlined with its step number (`1`, `2`, `3`) while the vessel shows `4`. Repeated ingredients combine their step numbers on the same lever. The instruction panel shows the letter sequence separately, such as `M A L`.
-- Every lever keeps a permanent coloured `M`, `A`, or `L` marker. While mixing, the next queued potion's lever numbers appear in gray below the current coloured numbers without changing the active outlines.
-- A non-blocking potion queue shows the previous two completed potions, the current potion, and the next three potions. Every row includes the potion code and its complete three-letter recipe.
-- Clicking `Mix` predicts the next potion locally so its lever numbers appear immediately instead of waiting for the mixing animation. The prediction is reconciled with the actual inventory result and expires safely if the action does not complete.
-- The instruction panel shows the current inventory slot, potion code, complete four-click recipe, and the station batch that potion belongs to.
-- The panel always lists how many of every configured recipe remain in the inventory, including potions carried into a refill cycle.
-- Each inventory potion is marked `#1`, `#2`, or `#3` for its planned station batch.
-- Once the available potion slots are full, the correct processing station is outlined. It remains the target until that contiguous batch is finished, then the next station is highlighted.
-- The optional wrong-station guard swaps the station's existing `Check` option into the left-click position while it is unavailable. The original processing option remains unchanged in the right-click menu.
-- A partial inventory always leaves the earliest unfinished potion's planned station available. Using it ends the refill early, guides the remaining station batches in order, and then highlights the conveyor for deposit.
-- After all 28 potions are processed, the conveyor is highlighted.
-- Deposited inventory gaps and recipes mixed out of the suggested order are accepted. Actual potions in the inventory count toward the configured recipe totals.
-- Using a lever while potions remain starts a rolling refill cycle around those existing potions. Wrong processing stations or a total above 28 still pause with a specific correction.
-- During delivery, MAL is ignored for the rolling-reset threshold. As soon as only two or fewer processed non-MAL potions remain, the conveyor highlight clears and a fresh mixing queue starts around every potion still carried.
-- Held Digweed and other non-potion items reserve their inventory slots for the current cycle instead of pausing guidance. The panel shows the reduced potion capacity (for example, `27/28 potion slots available`) and the remaining slots stay station-ordered.
-- Refill selection is calculated separately for each contiguous station batch. It completes every recipe assigned to station batch `#1` before generating `#2`, then `#3`; it never satisfies a recipe by making all three station variants consecutively.
-- Both unfinished and finished inventory item IDs count toward their assigned station batch. Active-station varbits keep a potion accounted for while it is temporarily removed from the inventory, while potions removed by the conveyor cease to count toward the next refill.
+## Reading the mixing guidance
 
-## Custom batches
+![Mixing queue, lever markers, and instruction panel](tutorial-images/02-mixing-guidance.png)
 
-Open the plugin configuration and set a count from 0 to 28 for each recipe. The combined total must be 28 or fewer. Counts are distributed round-robin over the selected station order, then flattened into contiguous station batches.
+The complete recipe is shown at once. You do not need to wait for each individual instruction to appear.
 
-For example, a count of 3 makes one variant for each station, a count of 6 makes two for each station, and a count of 4 makes two for the first station plus one for each remaining station.
+| On-screen cue | Meaning |
+| --- | --- |
+| Permanent `M`, `A`, and `L` | Identifies the Mox, Aga, and Lye lever even when it is not currently highlighted. |
+| Bright `1`, `2`, and `3` | The lever order for the potion you are making now. Required levers are also outlined. |
+| Gray numbers below | The lever order for the next potion in the queue. |
+| White `4` on the vessel | Click **Mix** after the three lever pulls. |
+| Recipe letters in the instruction panel | The same recipe in compact form, such as `M A L`. |
 
-For the first cycle, starting with an empty inventory is simplest. Later cycles can retain unfinished or finished potions: the plugin projects the station batches over those existing potions and the empty slots that will be filled next.
+For a MAL, follow `1` on Mox, `2` on Aga, `3` on Lye, then `4` on the mixing vessel. Repeated ingredients share a lever: an ALA shows `1 / 3` on Aga and `2` on Lye.
+
+If you pull a wrong lever, the intended recipe remains visible instead of allowing the mistake to advance the guide. If you deliberately mix a different potion, the resulting potion is detected and included in the live inventory plan.
+
+### Potion queue
+
+The queue is a look-ahead window rather than a list of individual lever clicks:
+
+- `NOW` is the complete potion being mixed.
+- `+1`, `+2`, and `+3` are the next three complete potions.
+- Up to two previous potions remain above `NOW`, making it easy to recover your place after looking away.
+- Every row includes both the potion code and its full three-letter recipe.
+
+Clicking **Mix** advances the visible plan immediately; it does not wait for the mixing animation to finish. The prediction is then checked against the potion that actually appears in the inventory.
+
+## Why the inventory is ordered by station
+
+The minigame takes potions from the inventory from top-left to bottom-right. Brains Off Mixology Helper uses that order deliberately: all potions assigned to station batch `#1` come first, followed by `#2`, then `#3`.
+
+Each potion receives a small inventory marker showing its batch number. Once mixing is complete, the helper outlines the station for the earliest unfinished potion and keeps that station selected until its contiguous group is done.
+
+![Numbered inventory batches and highlighted processing station](tutorial-images/03-processing-guidance.png)
+
+With the default station order, the 28-potion inventory is:
+
+| Batch | Station | Potions |
+| --- | --- | ---: |
+| `#1` | Alembic / Crystallise | 10 |
+| `#2` | Agitator / Homogenise | 9 |
+| `#3` | Retort / Concentrate | 9 |
+
+The Retort is last by default. Its repeated-click interaction is therefore at the end of the inventory, where an extra click cannot pull a potion belonging to a later station batch.
+
+## Safe repeated clicking with the station guard
+
+![Check swapped into the left-click position on an unavailable station](tutorial-images/04-menu-guard.png)
+
+The optional **Guard wrong stations** setting is designed for processing a station batch with repeated left-clicks:
+
+- When a station is currently usable, its normal **Crystallise**, **Homogenise**, or **Concentrate** action remains the default left-click.
+- When that station should not be used, the plugin moves the station's existing **Check** entry into the default position.
+- The processing action is not deleted or duplicated; it remains available in the right-click menu.
+- The swap is matched to the exact machine under the cursor, so entries from two nearby scene objects cannot be mixed together.
+
+This reduces spillover mistakes while repeatedly clicking a station. As the guide advances to another station, the old station becomes **Check** and the newly required station regains its normal processing action. A station that already contains a potion remains usable so you can always finish or recover it.
+
+Disable **Guard wrong stations** if you prefer the game's original menu order at all times.
+
+## Partial inventories and rolling refills
+
+You do not have to finish filling an inventory before processing it. The earliest station needed by any unfinished potion remains available. Clicking that station tells the helper to finish the current partial inventory, continue through any later station batches, and then guide you to the conveyor.
+
+Existing potions are carried into the next plan:
+
+- Finished and unfinished potions already in the inventory count toward the configured totals.
+- Potions temporarily inside a processing station stay accounted for.
+- A potion mixed outside the suggested order is recognized by its actual type.
+- Digweed and other non-potion items reduce the available potion capacity without stopping the guide. Moving an item transfers the blocked slot instead of shrinking the plan again.
+
+During delivery, Mixalot potions are ignored for the automatic refill threshold. A new mixing queue begins when only Mixalots plus at most two other processed potions remain. This lets the next inventory start before every useful leftover has disappeared.
+
+## Configuring a batch
+
+Set a count from `0` to `28` for each potion. The combined total must be no more than 28.
+
+Copies are distributed round-robin over the three stations and then flattened into station order:
+
+- `3` copies gives one potion to each station.
+- `6` copies gives two to each station.
+- `4` copies gives two to the first station and one to each remaining station.
+
+The defaults reproduce the reference 28-potion inventory:
+
+| Potion | Copies | Potion | Copies |
+| --- | ---: | --- | ---: |
+| MMA | 3 | ALA | 3 |
+| MML | 4 | LLL | 3 |
+| AAM | 3 | MLL | 3 |
+| ALL | 3 | MAL | 6 |
+| MMM | 0 | AAA | 0 |
+| **Total** | **28** | | |
+
+You may choose any of the six station orders. **Crystallise > Homogenise > Concentrate** is the recommended default for repeated-click processing.
+
+## Settings reference
+
+| Setting | What it controls |
+| --- | --- |
+| **Station order** | The order of the three contiguous processing batches. |
+| **Batch potions** | The target number of each recipe in one inventory. |
+| **Show instruction panel** | Current potion, recipe, station assignment, and live counts for every configured potion. |
+| **Show scene guidance** | Lever numbers, permanent letters, station outlines, and the conveyor highlight. |
+| **Number inventory batches** | The `#1`, `#2`, and `#3` markers on inventory potions. |
+| **Show potion queue** | Previous two, current, and next three complete potions. |
+| **Guard wrong stations** | Swaps the existing **Check** entry into left-click position when a station is unavailable. |
+| **Station highlight** | Color used for processing-station outlines and the active inventory slot. |
+| **Outline width / feather** | Thickness and softness of scene outlines. |
+
+## Troubleshooting and compatibility
+
+- **Nothing is visible:** the helper activates only when you are inside the laboratory and the Mastering Mixology order interface is open.
+- **The panel says Paused:** read the red correction message. Common causes include more potions than the configured batch, a potion moved outside the projected slots, or more than one station holding a potion.
+- **I want to abandon a nearly complete delivery:** pull any ingredient lever. The helper starts a rolling refill around the potions still present.
+- **I want to process only what I have:** use the one highlighted station that remains available for the partial inventory.
+- **Another Mixology plugin overlaps the inventory:** disable that plugin's inventory recipe labels or disable **Number inventory batches** here. The established Mastering Mixology plugin can still provide its order UI, quick-action timing, and Digweed alerts.
+
+The plugin does not send account or gameplay data anywhere. It reads the local inventory and minigame state needed for its overlays and does not access login credentials.
 
 ## Development
 
@@ -64,17 +155,10 @@ Requirements: Java 11.
 ./gradlew clean build
 ```
 
-To launch a development RuneLite client, run the `MixologyBatchPluginTest.main` class from the IDE.
+To launch a development RuneLite client, run `MixologyBatchPluginTest.main` from VS Code or another Java IDE. Assertions must be enabled with `-ea`.
 
-The repository uses `build=standard` and has no third-party runtime dependencies, which keeps a future Plugin Hub review straightforward. Before submitting, update `author` in `runelite-plugin.properties`, publish this code in a public GitHub repository, and add a Plugin Hub manifest containing that repository URL and a full commit hash.
-
-## Compatibility notes
-
-- The helper is active only in the Mastering Mixology lab region.
-- It reads RuneLite's mixer-slot, vessel, inventory, and station varbits; no data leaves the client.
-- Holding Digweed is supported. The helper does not decide which potion should receive the Digweed bonus.
-- The established Mastering Mixology plugin can still be used for its order UI, quick-action timing, and Digweed features. If its inventory recipe labels are enabled, they may visually share space with this plugin's small batch numbers.
+The project uses the Plugin Hub's `standard` build and has no third-party runtime dependencies. Before submission, set the public author in `runelite-plugin.properties`, publish the repository, and add a Plugin Hub manifest containing its URL and a full commit hash.
 
 ## Acknowledgements
 
-The implementation was informed by the open-source Mastering Mixology, Noot's Mixology, and Simplifying Mixology plugins. Their notices are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
+The implementation was informed by the open-source Mastering Mixology Helper, Noot's Mixology, and Simplifying Mixology plugins. Their notices are recorded in [THIRD_PARTY_NOTICES.md](THIRD_PARTY_NOTICES.md).
