@@ -3,6 +3,7 @@ package com.mixologybatch;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Graphics2D;
+import java.util.Optional;
 import javax.inject.Inject;
 import net.runelite.client.ui.overlay.OverlayLayer;
 import net.runelite.client.ui.overlay.OverlayPanel;
@@ -16,6 +17,7 @@ final class BatchPanelOverlay extends OverlayPanel
 	private static final Color COMPLETE = new Color(70, 255, 120);
 	private static final Color EMPTY = new Color(150, 150, 150);
 	private static final Color EXTRA = new Color(255, 175, 70);
+	private static final Color UNKNOWN = new Color(255, 190, 70);
 
 	private final MixologyBatchPlugin plugin;
 	private final MixologyBatchConfig config;
@@ -60,8 +62,44 @@ final class BatchPanelOverlay extends OverlayPanel
 				break;
 			default:
 		}
+		renderPotionSummary();
 		renderBatchInventory();
 		return super.render(graphics);
+	}
+
+	private void renderPotionSummary()
+	{
+		PotionSummaryDisplay display = config.potionSummaryDisplay();
+		if (display == PotionSummaryDisplay.HIDDEN || !plugin.isInventoryAvailable())
+		{
+			return;
+		}
+
+		if (display.showsCount())
+		{
+			addLine("Potions", Integer.toString(plugin.getFinishedPotions().size()), Color.WHITE);
+		}
+		if (display.showsFulfillment())
+		{
+			Optional<OrderFulfillment.Status> status = plugin.getOrderFulfillment();
+			if (status.isPresent())
+			{
+				addLine("Order", status.get().getDisplayName(), statusColor(status.get()));
+			}
+		}
+	}
+
+	private static Color statusColor(OrderFulfillment.Status status)
+	{
+		switch (status)
+		{
+			case READY:
+				return COMPLETE;
+			case UNKNOWN:
+				return UNKNOWN;
+			default:
+				return EMPTY;
+		}
 	}
 
 	private void renderMixing(Guidance guidance)
