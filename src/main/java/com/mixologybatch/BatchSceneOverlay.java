@@ -126,12 +126,13 @@ final class BatchSceneOverlay extends Overlay
 		Color previousColor = graphics.getColor();
 		try
 		{
-			graphics.setFont(FontManager.getRunescapeSmallFont());
-			int offset = depositPhase ? DEPOSIT_SUMMARY_OFFSET : 0;
+			graphics.setFont(sceneHintFont(graphics));
+			int lineHeight = Math.max(SUMMARY_LINE_HEIGHT, graphics.getFontMetrics().getHeight());
+			int offset = depositPhase ? Math.max(DEPOSIT_SUMMARY_OFFSET, lineHeight) : 0;
 			if (display.showsCount())
 			{
 				drawSummaryLine(graphics, conveyor, "Potions: " + finishedPotions.size(), Color.WHITE, offset);
-				offset += SUMMARY_LINE_HEIGHT;
+				offset += lineHeight;
 			}
 			if (display.showsFulfillment())
 			{
@@ -151,6 +152,21 @@ final class BatchSceneOverlay extends Overlay
 		{
 			graphics.setFont(previousFont);
 			graphics.setColor(previousColor);
+		}
+	}
+
+	private Font sceneHintFont(Graphics2D graphics)
+	{
+		switch (config.sceneHintFont())
+		{
+			case RUNESCAPE:
+				return FontManager.getRunescapeFont();
+			case RUNESCAPE_SMALL:
+				return FontManager.getRunescapeSmallFont();
+			case RUNESCAPE_BOLD:
+				return FontManager.getRunescapeBoldFont();
+			default:
+				return graphics.getFont().deriveFont(Font.BOLD, 16f);
 		}
 	}
 
@@ -276,7 +292,7 @@ final class BatchSceneOverlay extends Overlay
 		Color previousColor = graphics.getColor();
 		try
 		{
-			graphics.setFont(FontManager.getRunescapeSmallFont());
+			graphics.setFont(sceneHintFont(graphics));
 			drawSummaryLine(graphics, object, label, color, 0);
 		}
 		finally
@@ -299,7 +315,7 @@ final class BatchSceneOverlay extends Overlay
 		Color color,
 		int verticalOffset)
 	{
-		graphics.setFont(graphics.getFont().deriveFont(Font.BOLD, 16f));
+		graphics.setFont(sceneHintFont(graphics));
 		Point location = Perspective.getCanvasTextLocation(client, graphics, object.getLocalLocation(), text, 120);
 		if (location == null)
 		{

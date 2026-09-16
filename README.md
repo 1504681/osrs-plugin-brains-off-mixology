@@ -152,6 +152,7 @@ You may choose any of the six station orders. **Crystallise > Homogenise > Conce
 | **Guard wrong stations** | Swaps the existing **Check** entry into left-click position when a station is unavailable. |
 | **Left-click Inspect** | Promotes **Inspect** for `Off`, `Unknown`, or `All` finished potions; defaults to `Off`. |
 | **Highlight fulfillable orders** | Colors order names green when a confirmed matching finished potion is available; enabled by default. |
+| **Scene font** | Choose `Default`, `RuneScape`, `RuneScape Small`, or `RuneScape Bold` for all scene hints, including lever letters and recipe numbers. `Default` retains the previous bold styling using RuneLite's configured font family. |
 | **Potion summary** | Shows `Potions: X`, fulfillment status, both, or neither in the panel and at the conveyor; defaults to `Both`. |
 | **Mark unknown processing type** | Adds a small dot to finished potions whose processing type is unknown; disabled by default. |
 | **Show processing details on hover** | Shows a finished potion's known processing type in its hover tooltip; disabled by default. |

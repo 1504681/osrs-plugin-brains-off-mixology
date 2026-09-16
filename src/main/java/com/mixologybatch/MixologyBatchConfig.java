@@ -233,6 +233,18 @@ public interface MixologyBatchConfig extends Config
 
 	@ConfigItem(
 		section = DISPLAY,
+		keyName = "sceneHintFont",
+		name = "Scene font",
+		description = "Font for all scene hints, including lever letters and recipe numbers",
+		position = 20
+	)
+	default SceneHintFont sceneHintFont()
+	{
+		return SceneHintFont.DEFAULT;
+	}
+
+	@ConfigItem(
+		section = DISPLAY,
 		keyName = "potionSummaryDisplay",
 		name = "Potion summary",
 		description = "Show the finished-potion count, fulfillable order status, both, or neither at the conveyor and in the panel",
