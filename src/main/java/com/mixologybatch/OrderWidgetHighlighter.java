@@ -60,12 +60,12 @@ final class OrderWidgetHighlighter
 		refresh(false);
 	}
 
-	@Subscribe
+	@Subscribe(priority = -1)
 	public void onScriptPostFired(ScriptPostFired event)
 	{
 		if (event.getScriptId() == BUILD_POTION_ORDERS_SCRIPT)
 		{
-			clientThread.invokeLater(() -> refresh(true));
+			refresh(true);
 		}
 	}
 
