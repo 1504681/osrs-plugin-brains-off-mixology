@@ -272,29 +272,18 @@ final class BatchSceneOverlay extends Overlay
 			return;
 		}
 		outliner.drawOutline(object, config.outlineWidth(), color, config.outlineFeather());
-		if (target == LabObject.CONVEYOR)
+		Font previousFont = graphics.getFont();
+		Color previousColor = graphics.getColor();
+		try
 		{
-			Font previousFont = graphics.getFont();
-			try
-			{
-				graphics.setFont(FontManager.getRunescapeSmallFont());
-				Point location = Perspective.getCanvasTextLocation(
-					client, graphics, object.getLocalLocation(), label, 120);
-				if (location != null)
-				{
-					graphics.setColor(Color.BLACK);
-					graphics.drawString(label, location.getX() + 1, location.getY() + 1);
-					graphics.setColor(color);
-					graphics.drawString(label, location.getX(), location.getY());
-				}
-			}
-			finally
-			{
-				graphics.setFont(previousFont);
-			}
-			return;
+			graphics.setFont(FontManager.getRunescapeSmallFont());
+			drawSummaryLine(graphics, object, label, color, 0);
 		}
-		drawLabel(graphics, object, label, color, 0);
+		finally
+		{
+			graphics.setFont(previousFont);
+			graphics.setColor(previousColor);
+		}
 	}
 
 	private static String stationLabel(BatchEntry entry, boolean active)

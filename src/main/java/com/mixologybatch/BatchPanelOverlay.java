@@ -58,7 +58,7 @@ final class BatchPanelOverlay extends OverlayPanel
 				break;
 			case COMPLETE:
 				addLine("Complete", "Deposit / reset", COMPLETE);
-				addLine("Potions", plugin.getPlan().size() + "/" + plugin.getPlan().size(), COMPLETE);
+				addLine("Planned batch", Integer.toString(plugin.getPlan().size()), COMPLETE);
 				break;
 			default:
 		}
