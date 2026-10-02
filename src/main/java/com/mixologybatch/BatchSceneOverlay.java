@@ -227,7 +227,7 @@ final class BatchSceneOverlay extends Overlay
 			return;
 		}
 
-		graphics.setFont(graphics.getFont().deriveFont(Font.BOLD, 16f));
+		graphics.setFont(sceneHintFont(graphics));
 		Point location = Perspective.getCanvasTextLocation(
 			client, graphics, object.getLocalLocation(), potion.name(), 120);
 		if (location == null)
