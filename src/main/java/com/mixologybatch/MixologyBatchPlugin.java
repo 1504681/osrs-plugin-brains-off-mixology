@@ -69,6 +69,7 @@ public class MixologyBatchPlugin extends Plugin
 	private BatchQueueOverlay queueOverlay;
 
 	private final BatchStateResolver resolver = new BatchStateResolver();
+	private final VesselTracker vesselTracker = new VesselTracker();
 	private BatchPlan plan = BatchPlan.defaultPlan();
 	private CyclePlan cyclePlan;
 	private Guidance guidance = Guidance.outside();
@@ -79,6 +80,7 @@ public class MixologyBatchPlugin extends Plugin
 	private Potion trackedPotion;
 	private int trackedStep = 1;
 	private MixPrediction mixPrediction;
+	private Potion waitingVesselPotion;
 	private Station partialProcessingStation;
 	private int gameTickCounter;
 	private BatchMode batchMode = BatchMode.REFILLING;
@@ -280,9 +282,10 @@ public class MixologyBatchPlugin extends Plugin
 			}
 		}
 		reconcileMixPrediction(inventory);
+		waitingVesselPotion = vesselTracker.waitingPotion(vesselPotion, inventory, gameTickCounter);
 
 		List<InventorySlot> planningInventory = inventory;
-		Potion planningVesselPotion = vesselPotion;
+		Potion planningVesselPotion = waitingVesselPotion;
 		int[] planningMixerSlots = mixerSlots;
 		if (mixPrediction != null
 			&& inventory.get(mixPrediction.getInventorySlot()).isEmpty())
@@ -358,11 +361,8 @@ public class MixologyBatchPlugin extends Plugin
 			: null;
 		partialProcessingStation = partialEntry == null ? null : partialEntry.getStation();
 
+		// The vessel is labelled in the scene instead of being counted here.
 		currentPotionCounts = BatchStateResolver.potionCounts(planningInventory);
-		if (planningVesselPotion != null)
-		{
-			currentPotionCounts.merge(planningVesselPotion, 1, Integer::sum);
-		}
 		for (Potion activePotion : activeStations.values())
 		{
 			currentPotionCounts.merge(activePotion, 1, Integer::sum);
@@ -617,6 +617,8 @@ public class MixologyBatchPlugin extends Plugin
 		inLab = false;
 		cyclePlan = null;
 		partialProcessingStation = null;
+		waitingVesselPotion = null;
+		vesselTracker.reset();
 		currentPotionCounts.clear();
 		resetActionQueue();
 		batchMode = BatchMode.REFILLING;
@@ -648,6 +650,11 @@ public class MixologyBatchPlugin extends Plugin
 	int getCurrentPotionCount(Potion potion)
 	{
 		return currentPotionCounts.getOrDefault(potion, 0);
+	}
+
+	Potion getWaitingVesselPotion()
+	{
+		return waitingVesselPotion;
 	}
 
 	int getCyclePotionCapacity()
