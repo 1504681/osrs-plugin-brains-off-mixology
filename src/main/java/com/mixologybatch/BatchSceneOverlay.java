@@ -3,6 +3,7 @@ package com.mixologybatch;
 import java.awt.Color;
 import java.awt.Dimension;
 import java.awt.Font;
+import java.awt.FontMetrics;
 import java.awt.Graphics2D;
 import java.util.Map;
 import java.util.Optional;
@@ -60,6 +61,8 @@ final class BatchSceneOverlay extends Overlay
 		{
 			return null;
 		}
+
+		renderVesselContents(graphics);
 
 		Guidance guidance = plugin.getGuidance();
 		renderPotionSummary(graphics, guidance);
@@ -215,6 +218,32 @@ final class BatchSceneOverlay extends Overlay
 		}
 	}
 
+	private void renderVesselContents(Graphics2D graphics)
+	{
+		Potion potion = plugin.getWaitingVesselPotion();
+		TileObject object = potion == null ? null : objects.find(LabObject.MIXING_VESSEL);
+		if (object == null)
+		{
+			return;
+		}
+
+		graphics.setFont(graphics.getFont().deriveFont(Font.BOLD, 16f));
+		Point location = Perspective.getCanvasTextLocation(
+			client, graphics, object.getLocalLocation(), potion.name(), 120);
+		if (location == null)
+		{
+			return;
+		}
+		FontMetrics metrics = graphics.getFontMetrics();
+		int x = location.getX();
+		for (Component component : potion.getRecipe())
+		{
+			String letter = Character.toString(component.getCode());
+			drawText(graphics, letter, x, location.getY() + MARKER_OFFSET, component.getColor());
+			x += metrics.stringWidth(letter);
+		}
+	}
+
 	private void renderMixingRecipe(Graphics2D graphics, Potion potion, Potion nextPotion)
 	{
 		for (Component component : Component.values())
@@ -321,10 +350,14 @@ final class BatchSceneOverlay extends Overlay
 		{
 			return;
 		}
-		int y = location.getY() + verticalOffset;
+		drawText(graphics, text, location.getX(), location.getY() + verticalOffset, color);
+	}
+
+	private static void drawText(Graphics2D graphics, String text, int x, int y, Color color)
+	{
 		graphics.setColor(Color.BLACK);
-		graphics.drawString(text, location.getX() + 1, y + 1);
+		graphics.drawString(text, x + 1, y + 1);
 		graphics.setColor(color);
-		graphics.drawString(text, location.getX(), y);
+		graphics.drawString(text, x, y);
 	}
 }

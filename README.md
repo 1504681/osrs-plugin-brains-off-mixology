@@ -37,6 +37,7 @@ The complete recipe is shown at once. You do not need to wait for each individua
 | Bright `1`, `2`, and `3` | The lever order for the potion you are making now. Required levers are also outlined. |
 | Gray numbers below | The lever order for the next potion in the queue. |
 | White `4` on the vessel | Click **Mix** after the three lever pulls. |
+| Colored recipe code above the vessel | The potion waiting in the mixing vessel, such as `ALA`. It joins the panel counts once it is in your inventory. |
 | Recipe letters in the instruction panel | The same recipe in compact form, such as `M A L`. |
 
 For a MAL, follow `1` on Mox, `2` on Aga, `3` on Lye, then `4` on the mixing vessel. Repeated ingredients share a lever: an ALA shows `1 / 3` on Aga and `2` on Lye.
@@ -146,7 +147,7 @@ You may choose any of the six station orders. **Crystallise > Homogenise > Conce
 | **Station order** | The order of the three contiguous processing batches. |
 | **Batch potions** | The target number of each recipe in one inventory. |
 | **Show instruction panel** | Current potion, recipe, station assignment, and live counts for every configured potion. |
-| **Show scene guidance** | Lever numbers, permanent letters, station outlines, and the conveyor highlight. |
+| **Show scene guidance** | Lever numbers, permanent letters, the vessel contents label, station outlines, and the conveyor highlight. |
 | **Number inventory batches** | The `#1`, `#2`, and `#3` markers on inventory potions. |
 | **Show potion queue** | Previous two, current, and next three complete potions. |
 | **Guard wrong stations** | Swaps the existing **Check** entry into left-click position when a station is unavailable. |
